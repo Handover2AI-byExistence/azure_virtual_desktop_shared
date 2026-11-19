@@ -1,0 +1,116 @@
+#CLEANUPPIPELINEFILES must be "true" for action to be taken
+#CI_DISPOSABLE_ENVIRONMENT is 'true' on GitHub executors that toss the entire run environment.
+#CI_SHARED_ENVIRONMENT is only available on GitLab Executors that don't toss the run environment. (Currently Shell and Ssh)
+# You can save unnecessary time doing deletes by enabling the below rules that contain it.
+# Set VERSBOSESWITCH to '' to prevent output showing every file delete.
+
+variables:
+  CLEANUPPIPELINEFILES:
+    value: "true"
+    description: "This must be set to 'true' for cleanup to be attempted"
+  VERBOSESWITCH:
+    value: "false"
+    description: "Set to 'true' to show the list of file deletes in the log for testing if things are working as desired."
+  FORCE:
+    value: "false"
+    description: "Under normal circumstances, this code will not delete when $CI_DISPOSABLE_ENVIRONMENT is 'true' as it wastes compute because the entire environment is disposed of (e.g. when building using containers.)  This parameter always forces a delete - can be used for testing."
+  DOCKERCLEANUP:
+    value: "false"
+    description: "Generally this is intended for shell runners that have docker installed, especially those with GitLab Runner pull_policy set to 'if-not-present' or 'never'. If desired a shell runner can be setup on all Docker runners (and locked down) just to run this maintenance from runner jobs."
+  CLEANUPMETHOD:
+    value: "just_this_job"
+    description: 'Valid Values: "just_this_job" - attempts to cleanup files from just this job. Works well for single shell runners or pipelines locked to a single runner. "all_older_files" - cleans up all files over the number of days indicated by OLDER_FILES_AGE_DAYS. Keeps the whole cluster clean when used on all jobs.'
+  OLDER_FILES_AGE_DAYS:
+    value: "30"
+    description: "How old, in days, should files be to delete them."
+  
+# GottaSaveTheArtifacts:
+#   stage: staging
+#   script:
+#     - |
+#       echo "CI_DISPOSABLE_ENVIRONMENT (like containers): $CI_DISPOSABLE_ENVIRONMENT"
+#       echo "CI_SHARED_ENVIRONMENT (like shell runners): $CI_SHARED_ENVIRONMENT"
+#       echo "VERBOSESWITCH: $VERBOSESWITCH"
+#       echo "FORCE: $FORCE"
+#       echo "CLEANUPMETHOD: ${CLEANUPMETHOD}"
+#       echo "OLDER_FILES_AGE_DAYS: ${OLDER_FILES_AGE_DAYS}"
+#       echo "CI_BUILDS_DIR: ${CI_BUILDS_DIR}"
+#       echo "CI_PROJECT_DIR: ${CI_PROJECT_DIR}"
+#       echo "Saving the artifacts"
+#   artifacts:
+#     paths:
+#       - README.md
+
+# CleanupPipelineFilesBash:
+#   stage: .post
+#   rules:
+#       - if: '$CLEANUPPIPELINEFILES == "true"'
+#   script:
+#     - |
+#       echo "IMPORTANT: If this is running on a runner cluster, there is no guarantee that this cleanup job is running on the same runner instance that created many build artifacts. Many cleanup runs on a cluster will have some effect by eventually cleaning up many of the build job directories."
+#       if [[ "${CI_DISPOSABLE_ENVIRONMENT,,}" == "true" ]] && [[ "${FORCE,,}" != "true" ]]; then
+#         echo "This CI environment is disposed of at the end of every job, skipping cleanup of ${CI_BUILDS_DIR}"
+#       else
+#         VERBOSECMD=''
+#         if [[ "${VERBOSESWITCH,,}" == "true" ]]; then
+#           VERBOSECMD='-v'
+#         fi
+#         echo "Removing old build files using method: ${CLEANUPMETHOD,,}"
+#         cd ${CI_BUILDS_DIR}
+#         #Note - .git folder delete is never verbose\
+#         if [[ "${CLEANUPMETHOD,,}" == "just_this_job" ]]; then
+#           rm -rf ${CI_PROJECT_DIR}/.git
+#           rm -rf ${VERBOSECMD} ${CI_PROJECT_DIR}
+#         elif [[ "${CLEANUPMETHOD,,}" == "all_older_files" ]]; then
+#           find ${CI_BUILDS_DIR} -type f -mtime +${OLDER_FILES_AGE_DAYS} -delete;
+#         else
+#           echo "Cleanup method '${CLEANUPMETHOD,,}' is unknown."
+#         fi
+#       fi
+
+CleanupPipelineFilesPowerShell_pre_prod:
+  stage: staging
+  tags:
+    - "mcis, windows, azure, pre-prod"
+  rules:
+     - if: ($CLEANUPPIPELINEFILES == "true" && $CI_COMMIT_BRANCH == "staging")
+       when: on_success
+     - when: never
+  script:
+    - |
+      write-host "IMPORTANT: If this is running on a runner cluster, there is no guarantee that this cleanup job is running on the same runner instance that ran previous jobs that created the build artifacts. Many cleanup runs on a cluster will have some effect by eventually cleaning up many of the build job directories."
+      if ((${CI_DISPOSABLE_ENVIRONMENT} -ieq 'true') -and (${FORCE} -ine 'true')) {
+        Write-Host "This CI environment is disposed of at the end of every job, skipping cleanup of ${CI_BUILDS_DIR}"
+      } else {
+
+        echo "Removing old build files using method: ${CLEANUPMETHOD,,}"
+        cd ${CI_BUILDS_DIR}
+        #Note - .git folder delete is never verbose
+        if ($VERBOSESWITCH -ieq 'true' ) {
+          $VerbosePreference='Continue'
+        }
+        if ("${CLEANUPMETHOD}" -ieq "just_this_job") {       
+          Remove-Item -Path ${CI_PROJECT_DIR}/.git -Recurse -Force
+          Remove-Item -Path ${CI_PROJECT_DIR} -Recurse -Force -Verbose 4>&1
+        } elseif ("${CLEANUPMETHOD}" -ieq "all_older_files") {
+          Get-ChildItem –Path "${CI_BUILDS_DIR}" -Recurse | Where-Object {($_.LastWriteTime -lt (Get-Date).AddDays(-${OLDER_FILES_AGE_DAYS}))} | Remove-Item
+        } else {
+          write-host "Cleanup method '${CLEANUPMETHOD}' is unknown."
+        }
+      }
+  needs:
+    - job: apply_pre_prod
+
+# DockerCleanUp:
+#   image: docker
+#   stage: .post
+#   rules:
+#       - if: '$DOCKERCLEANUP == "true"'
+#   services:
+#     - docker:19.03.12-dind
+#   script:
+#     - |
+#       #Generally this is intended for shell runners that have docker installed, especially those with
+#       # GitLab Runner pull_policy set to 'if-not-present' or 'never'. If desired, a shell runner can be setup
+#       # on all Docker runners (and locked down) just to run this maintenance from runner jobs.
+#       docker system prune -a

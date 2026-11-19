@@ -1,0 +1,45 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+validate_code:
+  stage: validate
+  tags:
+    - "mcis, windows, azure, pre-prod"
+  allow_failure: false
+
+  before_script:
+    - terraform init -backend-config="./vars/backend-pre-prod.tfvars" -backend-config="client_id=$AZURE_CLIENT_ID_PREPROD" -backend-config="client_secret=$AZURE_CLIENT_SECRET_PREPROD" -backend-config="tenant_id=$AZURE_TENANT_ID_PREPROD" -backend-config="subscription_id=$AZURE_MGT_SUBSCRIPTION_ID_PREPROD"
+    - az login --service-principal -u $AZURE_CLIENT_ID_PREPROD -p $AZURE_CLIENT_SECRET_PREPROD --tenant $AZURE_TENANT_ID_PREPROD
+    
+    # Ensure Az PowerShell module is available
+    #- pwsh -Command "if (-not (Get-Module -ListAvailable -Name Az)) { Install-Module Az -Force -Scope CurrentUser }"
+
+  script:
+   #- echo "Running PowerShell script to fetch next available Firewall Policy priority..."
+   # Run your script (adjust the path and arguments)
+   #- pwsh -File "./script/get-next-priority-firewall.ps1"
+   #- pwsh -File "./script/get-next-priority-firewall.ps1" -SubscriptionId $AZURE_CON_SUBSCRIPTION_ID_PREPROD -ResourceGroup $AZURE_FW_RESOURCEGROUP_PREPROD -PolicyName $AZURE_FW_POLICY_PREPROD
+
+
+   # Load TF_VAR_priority from script output file
+   #- Get-Content priority.env | ForEach-Object {
+   #     if ($_ -match 'TF_VAR_priority=(.*)') {
+   #       $env:TF_VAR_priority = $matches[1]
+   #     }
+   #   }
+   #- echo "Next available priority $env:TF_VAR_priority"
+
+   - echo "Validating Terraform configuration..."
+   - terraform validate
+   - echo "Terraform validation completed successfully."
+
+  #artifacts:
+  #  reports:
+  #    dotenv: priority.env
+
+
+  rules:
+      - if: $CI_COMMIT_BRANCH == "develop"
+      - if: $CI_COMMIT_BRANCH =~ /^fix\//
+      - if: $CI_COMMIT_BRANCH =~ /^feature\//
+      - if: $CI_MERGE_REQUEST_ID

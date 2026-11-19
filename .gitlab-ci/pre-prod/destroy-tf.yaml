@@ -1,0 +1,21 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+destroy_pre_prod:
+  stage: staging
+  tags:
+    - "mcis, windows, azure, pre-prod"
+  allow_failure: false
+  when: manual
+  before_script:
+  #  - git submodule add --force https://gitlab.com/vodafoneziggodi/mcis/azure-cloud-deployments/modules.git
+    - terraform init -backend-config="./vars/backend-pre-prod.tfvars" -backend-config="client_id=$AZURE_CLIENT_ID_PREPROD" -backend-config="client_secret=$AZURE_CLIENT_SECRET_PREPROD" -backend-config="tenant_id=$AZURE_TENANT_ID_PREPROD" -backend-config="subscription_id=$AZURE_MGT_SUBSCRIPTION_ID_PREPROD"
+    - az login --service-principal -u $AZURE_CLIENT_ID_PREPROD -p $AZURE_CLIENT_SECRET_PREPROD --tenant $AZURE_TENANT_ID_PREPROD
+  script:
+    - echo "Running terraform destroy for Pre-Prod environment..."
+    - terraform destroy -auto-approve -var-file="./vars/terraform-pre-prod.tfvars"
+    - echo "Terraform destroy completed successfully."
+  only:
+    - staging
+  needs:
+    - job: apply_pre_prod

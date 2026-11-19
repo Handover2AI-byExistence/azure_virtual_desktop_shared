@@ -1,0 +1,17 @@
+variables:
+  PIPELINE_TEAMNAME: "mcis"
+  GIT_SUBMODULE_STRATEGY: recursive
+include:
+  - local: '.gitlab-ci/dev/validate-tf.yaml'
+  - local: '.gitlab-ci/pre-prod/plan-tf.yaml'
+  - local: '.gitlab-ci/pre-prod/apply-tf.yaml'
+  - local: '.gitlab-ci/pre-prod/cleanup-tf.yaml'
+  - local: '.gitlab-ci/pre-prod/destroy-tf.yaml'
+  - local: '.gitlab-ci/prod/plan-tf.yaml'
+  - local: '.gitlab-ci/prod/apply-tf.yaml'
+  - local: '.gitlab-ci/prod/cleanup-tf.yaml'
+
+stages:
+  - validate
+  - staging
+  - main
