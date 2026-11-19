@@ -1,5 +1,5 @@
 variables:
-  PIPELINE_TEAMNAME: "mcis"
+  PIPELINE_TEAMNAME: "<TEAM-NAME-HERE>"
   GIT_SUBMODULE_STRATEGY: recursive
 include:
   - local: '.gitlab-ci/dev/validate-tf.yaml'
