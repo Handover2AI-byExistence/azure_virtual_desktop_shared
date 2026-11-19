@@ -167,10 +167,10 @@ variable "tags" {
   default = {
     Application     = "AVD"
     Confidentiality = "C2"
-    CreatedBy       = "handover2ai@gmail.com"
+    CreatedBy       = "william.kox@vodafoneziggo.com"
     CreatedWith     = "Terraform"
     #Environment     = "DEV"
-    ManagedBy      = "handover2ai@gmail.com"
+    ManagedBy      = "oit-oase@vodafoneziggo.com"
     Project        = "OneCitrix/AVD"
     TaggingVersion = "V2.4"
   }
